@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-response-grader"
+version = "1.0.0"
+description = "Rubric rating, inter-rater agreement, Bradley-Terry ranking and LLM-as-judge for AI responses"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Wyatt Cosgriff" }]
+dependencies = []
+
+[project.optional-dependencies]
+judge = ["anthropic"]
+
+[project.scripts]
+grader = "grader.__main__:main"
+
+[tool.setuptools]
+packages = ["grader"]

@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Response Rater</title>
+<meta name="description" content="Rate AI responses side by side against a rubric, then see how your judgments compare with other raters.">
+<style>
+:root {
+  --bg: #f5f6f8; --panel: #fff; --ink: #191c22; --muted: #5f6672; --line: #e1e4ea;
+  --accent: #3b4fd8; --accent-soft: #e8ebfd; --good: #1f7a4f; --good-soft: #e3f3ea; --bad: #b0372b; --bad-soft: #fbe9e6;
+  --code: #f1f3f6; --shadow: 0 1px 2px rgba(20,20,40,.05), 0 6px 20px rgba(20,20,40,.05);
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111318; --panel: #191c22; --ink: #e8e9ee; --muted: #9aa1ad; --line: #2b2f38;
+    --accent: #8f9cff; --accent-soft: #252a4a; --good: #6cc4a1; --good-soft: #1b3229; --bad: #ef7f72; --bad-soft: #3a2220;
+    --code: #22262e; --shadow: none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111318; --panel: #191c22; --ink: #e8e9ee; --muted: #9aa1ad; --line: #2b2f38;
+  --accent: #8f9cff; --accent-soft: #252a4a; --good: #6cc4a1; --good-soft: #1b3229; --bad: #ef7f72; --bad-soft: #3a2220;
+  --code: #22262e; --shadow: none; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 32px 16px 64px; }
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; align-items: end; margin-bottom: 20px; }
+h1 { margin: 0 0 4px; font-size: 28px; letter-spacing: -.01em; }
+.sub { margin: 0; color: var(--muted); max-width: 62ch; }
+a { color: var(--accent); font-weight: 600; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.progress { display: flex; align-items: center; gap: 12px; margin: 8px 0 18px; color: var(--muted); font-size: 13px; }
+.bar { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--accent); transition: width .25s; }
+.chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); text-transform: capitalize; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 18px; }
+.prompt { margin-bottom: 16px; }
+.label { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.md p { margin: 0 0 .7em; }
+.md p:last-child { margin-bottom: 0; }
+.md pre { background: var(--code); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font: 13px/1.5 var(--mono); margin: 0 0 .7em; }
+.md code { font-family: var(--mono); font-size: .92em; background: var(--code); padding: 1px 4px; border-radius: 4px; }
+.md pre code { background: none; padding: 0; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 820px) { .pair { grid-template-columns: 1fr; } }
+.resp { display: flex; flex-direction: column; gap: 14px; }
+.resp .md { min-height: 60px; }
+.system { font-size: 12px; color: var(--muted); }
+.rubric { border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+.crit { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; font-size: 13.5px; }
+.crit .name { cursor: help; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { font: 600 13px var(--mono); width: 32px; height: 30px; border: 0; background: none; color: var(--muted); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button:hover { background: var(--accent-soft); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.seg button:disabled { cursor: default; }
+.seg button:disabled:hover { background: none; }
+.seg button:disabled[aria-pressed="true"] { background: var(--accent); }
+.others { font: 12px var(--mono); color: var(--muted); min-width: 64px; text-align: right; }
+.prefer { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
+.prefer .q { width: 100%; text-align: center; font-weight: 600; }
+.btn { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.actions { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+.reveal { margin-top: 16px; }
+.verdict { padding: 10px 14px; border-radius: 9px; margin-bottom: 12px; font-weight: 600; }
+.verdict.match { background: var(--good-soft); color: var(--good); }
+.verdict.miss { background: var(--bad-soft); color: var(--bad); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+td.num, th.num { text-align: right; font-family: var(--mono); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0; }
+@media (max-width: 620px) { .stats { grid-template-columns: 1fr; } }
+.stat { background: var(--bg); border-radius: 10px; padding: 12px; }
+.stat .v { font: 600 24px/1.2 var(--mono); }
+.stat .k { font-size: 12.5px; color: var(--muted); }
+footer { margin-top: 36px; color: var(--muted); font-size: 13px; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Response Rater</h1>
+      <p class="sub">Grade two AI answers to the same prompt the way an AI-training annotator would: score each against a rubric, pick the better one, then see how your judgment compares with other raters. Which model wrote which answer stays hidden until you submit.</p>
+    </div>
+    <a href="https://github.com/WyGuy32/llm-response-grader">Source on GitHub →</a>
+  </header>
+
+  <div class="progress"><span id="count"></span><div class="bar"><div id="bar"></div></div><span id="cat" class="chip"></span></div>
+  <main id="app"><div class="card">Loading tasks…</div></main>
+
+  <footer>The comparison ratings come from three simulated raters (one careful, one lenient, one noisy) so the demo works offline; see the repo for how they are generated. Your ratings stay in this browser unless you export them.</footer>
+</div>
+
+<script>
+const STORE = "rater-v1";
+let data, state;
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// Just enough Markdown for the sample answers: code fences, inline code, bold, paragraphs.
+function md(text) {
+  return text.split(/```/).map((part, i) => {
+    if (i % 2) return `<pre><code>${esc(part.replace(/^\w*\n/, ""))}</code></pre>`;
+    return part.trim().split(/\n{2,}/).filter(Boolean).map(p =>
+      "<p>" + esc(p).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>") + "</p>"
+    ).join("");
+  }).join("");
+}
+
+const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
+const weighted = s => { const c = data.rubric.criteria; return c.reduce((t, k) => t + k.weight * s[k.id], 0) / c.reduce((t, k) => t + k.weight, 0); };
+function majority(prefs) {
+  const n = {}; prefs.forEach(p => n[p] = (n[p] || 0) + 1);
+  const top = Object.entries(n).sort((a, b) => b[1] - a[1]);
+  return top.length > 1 && top[0][1] === top[1][1] ? "tie" : top[0][0];
+}
+
+function load() {
+  try { const s = JSON.parse(localStorage.getItem(STORE)); if (s && s.order) return s; } catch {}
+  // Show each task's answers in a random order so a habit of preferring the left side can't skew results.
+  return { index: 0, ratings: {}, order: data.tasks.map(() => Math.random() < 0.5 ? ["A", "B"] : ["B", "A"]) };
+}
+function save() { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch {} }
+
+function draft(task) {
+  return state.ratings[task.id] || (state.ratings[task.id] = { scores: { A: {}, B: {} }, preference: null, submitted: false });
+}
+const complete = r => ["A", "B"].every(l => data.rubric.criteria.every(c => r.scores[l][c.id])) && r.preference;
+const othersFor = id => data.ratings.filter(r => r.task_id === id);
+
+function render() {
+  const n = data.tasks.length, done = Object.values(state.ratings).filter(r => r.submitted).length;
+  document.getElementById("bar").style.width = `${done / n * 100}%`;
+  if (state.index >= n) return renderSummary();
+  const task = data.tasks[state.index], r = draft(task), order = state.order[state.index], locked = r.submitted;
+  document.getElementById("count").textContent = `Task ${state.index + 1} of ${n}`;
+  document.getElementById("cat").textContent = task.category;
+  const others = othersFor(task.id);
+  const [lo, hi] = data.rubric.scale;
+
+  const respCard = (label, pos) => {
+    const resp = task.responses[label === "A" ? 0 : 1];
+    return `<section class="card resp">
+      <div><div class="label">Response ${pos}${locked ? ` · <span class="system">${esc(resp.system)}</span>` : ""}</div><div class="md">${md(resp.text)}</div></div>
+      <div class="rubric">${data.rubric.criteria.map(c => {
+        const tip = `${c.description} ${Object.entries(c.anchors || {}).map(([k, v]) => `${k} = ${v}`).join("; ")}`;
+        const theirs = locked && others.length ? mean(others.map(o => o.scores[label][c.id])).toFixed(1) : "";
+        return `<div class="crit"><span class="name" title="${esc(tip)}">${esc(c.name)}</span>
+          <span style="display:flex;gap:8px;align-items:center">${locked ? `<span class="others" title="Mean of other raters">others ${theirs}</span>` : ""}
+          <span class="seg" role="group" aria-label="${esc(c.name)} for response ${pos}">${
+            Array.from({ length: hi - lo + 1 }, (_, i) => lo + i).map(v =>
+              `<button data-l="${label}" data-c="${c.id}" data-v="${v}" aria-pressed="${r.scores[label][c.id] === v}"${locked ? " disabled" : ""}>${v}</button>`).join("")
+          }</span></span></div>`;
+      }).join("")}</div>
+    </section>`;
+  };
+
+  const prefBtn = (value, text) =>
+    `<button class="btn" data-pref="${value}" aria-pressed="${r.preference === value}"${locked ? " disabled" : ""}>${text}</button>`;
+
+  let reveal = "";
+  if (locked) {
+    const consensus = majority(others.map(o => o.preference));
+    const name = p => p === "tie" ? "a tie" : `Response ${order.indexOf(p) + 1}`;
+    const match = r.preference === consensus;
+    reveal = `<div class="card reveal">
+      <div class="verdict ${match ? "match" : "miss"}">${match ? "You agreed with" : "You differed from"} the other raters' majority: ${name(consensus)}.</div>
+      <table><thead><tr><th>Rater</th><th>Preferred</th><th class="num">Response 1 score</th><th class="num">Response 2 score</th></tr></thead><tbody>
+      ${[{ rater: "you", ...r }, ...others].map(o => `<tr><td>${o.rater === "you" ? "<strong>you</strong>" : esc(o.rater)}</td><td>${name(o.preference)}</td>
+        <td class="num">${weighted(o.scores[order[0]]).toFixed(2)}</td><td class="num">${weighted(o.scores[order[1]]).toFixed(2)}</td></tr>`).join("")}
+      </tbody></table></div>`;
+  }
+
+  document.getElementById("app").innerHTML = `
+    <div class="card prompt"><div class="label">Prompt</div><div class="md">${md(task.prompt)}</div></div>
+    <div class="pair">${respCard(order[0], 1)}${respCard(order[1], 2)}</div>
+    <div class="prefer"><div class="q">Overall, which response is better?</div>
+      ${prefBtn(order[0], "Response 1")}${prefBtn("tie", "About the same")}${prefBtn(order[1], "Response 2")}</div>
+    ${reveal}
+    <div class="actions">
+      <button class="btn" id="prev"${state.index === 0 ? " disabled" : ""}>← Back</button>
+      ${locked ? `<button class="btn primary" id="next">${state.index === n - 1 ? "See your results" : "Next task →"}</button>`
+               : `<button class="btn primary" id="submit"${complete(r) ? "" : " disabled"}>Submit and compare</button>`}
+    </div>`;
+}
+
+function renderSummary() {
+  document.getElementById("count").textContent = "Done";
+  document.getElementById("cat").textContent = "results";
+  const mine = data.tasks.filter(t => state.ratings[t.id]?.submitted);
+  let agree = 0, gaps = [], diffs = [];
+  mine.forEach(t => {
+    const r = state.ratings[t.id], others = othersFor(t.id);
+    if (r.preference === majority(others.map(o => o.preference))) agree++;
+    ["A", "B"].forEach(l => data.rubric.criteria.forEach(c => {
+      const m = mean(others.map(o => o.scores[l][c.id]));
+      gaps.push(Math.abs(r.scores[l][c.id] - m)); diffs.push(r.scores[l][c.id] - m);
+    }));
+  });
+  const bias = diffs.length ? mean(diffs) : 0;
+  document.getElementById("app").innerHTML = `<div class="card">
+    <h2 style="margin:0 0 4px">Your results</h2>
+    <p class="sub">Compared with the other raters on the ${mine.length} tasks you completed.</p>
+    <div class="stats">
+      <div class="stat"><div class="v">${mine.length ? Math.round(agree / mine.length * 100) : 0}%</div><div class="k">Agreed with the majority preference</div></div>
+      <div class="stat"><div class="v">${gaps.length ? mean(gaps).toFixed(2) : "–"}</div><div class="k">Average distance from others' rubric scores (1–5 scale)</div></div>
+      <div class="stat"><div class="v">${bias >= 0 ? "+" : ""}${bias.toFixed(2)}</div><div class="k">${Math.abs(bias) < 0.3 ? "Well calibrated" : bias > 0 ? "You score more generously than others" : "You score more strictly than others"}</div></div>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="export">Download my ratings (JSONL)</button>
+      <button class="btn" id="review">Review tasks</button>
+      <button class="btn" id="reset">Start over</button>
+    </div></div>`;
+}
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b || b.disabled) return;
+  const task = data.tasks[state.index];
+  if (b.dataset.c) { draft(task).scores[b.dataset.l][b.dataset.c] = +b.dataset.v; }
+  else if (b.dataset.pref) { draft(task).preference = b.dataset.pref; }
+  else if (b.id === "submit") { draft(task).submitted = true; }
+  else if (b.id === "next") { state.index++; window.scrollTo({ top: 0, behavior: "smooth" }); }
+  else if (b.id === "prev") { state.index = Math.max(0, state.index - 1); }
+  else if (b.id === "review") { state.index = 0; }
+  else if (b.id === "reset") { if (!confirm("Clear all your ratings?")) return; localStorage.removeItem(STORE); state = load(); }
+  else if (b.id === "export") {
+    const lines = data.tasks.filter(t => state.ratings[t.id]?.submitted).map(t => {
+      const r = state.ratings[t.id];
+      return JSON.stringify({ task_id: t.id, rater: "you", scores: r.scores, preference: r.preference });
+    });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "application/x-ndjson" }));
+    a.download = "my_ratings.jsonl"; a.click(); URL.revokeObjectURL(a.href);
+    return;
+  } else return;
+  save(); render();
+});
+
+fetch("sample.json").then(r => r.json()).then(d => { data = d; state = load(); render(); })
+  .catch(() => { document.getElementById("app").innerHTML = '<div class="card">Could not load sample.json.</div>'; });
+</script>
+</body>
+</html>
