@@ -68,5 +68,5 @@ def simulate(seed: int = 7) -> list[dict]:
 if __name__ == "__main__":
     out = Path(__file__).resolve().parent.parent / "data" / "sample" / "ratings.jsonl"
     records = simulate()
-    out.write_text("".join(json.dumps(r) + "\n" for r in records), encoding="utf-8")
+    out.write_text("".join(json.dumps(r) + "\n" for r in records), encoding="utf-8", newline="\n")
     print(f"wrote {len(records)} ratings to {out}")

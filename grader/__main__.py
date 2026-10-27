@@ -45,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
 
         text = build_report(ds)
         if args.output:
-            args.output.write_text(text, encoding="utf-8")
+            args.output.write_text(text, encoding="utf-8", newline="\n")
             print(f"wrote {args.output}")
         else:
             sys.stdout.reconfigure(encoding="utf-8")
@@ -57,11 +57,11 @@ def main(argv: list[str] | None = None) -> int:
         tasks = ds.tasks[: args.limit] if args.limit else ds.tasks
         results = judge_dataset(make_client(), tasks, ds.rubric, rubric_scores=not args.pairwise_only)
         out = args.dataset / "judgments.jsonl"
-        out.write_text("".join(json.dumps(r) + "\n" for r in results), encoding="utf-8")
+        out.write_text("".join(json.dumps(r) + "\n" for r in results), encoding="utf-8", newline="\n")
         print(f"wrote {len(results)} judgments to {out}")
 
     elif args.command == "export-web":
-        args.output.write_text(export_web(args.dataset), encoding="utf-8")
+        args.output.write_text(export_web(args.dataset), encoding="utf-8", newline="\n")
         print(f"wrote {args.output}")
     return 0
 
